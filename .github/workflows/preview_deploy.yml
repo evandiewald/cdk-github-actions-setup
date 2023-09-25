@@ -1,0 +1,33 @@
+name: cdk diff
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch: {}
+jobs:
+  diff:
+    name: Preview Deployment
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    env: {}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: v18.15.0
+      - name: Authenticate Via OIDC Role
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-region: us-east-1
+          role-duration-seconds: 1800
+          role-skip-session-tagging: true
+          role-to-assume: ${{ secrets.ACTIONS_ROLE_ARN }}
+      - name: Build
+        run: |-
+          npm ci
+          npm run build
+          npm run build:ci
+          npx cdk diff

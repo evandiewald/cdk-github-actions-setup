@@ -1,0 +1,66 @@
+name: Build and Deploy
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+jobs:
+  synth:
+    name: Synthesize
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: v18.15.0
+      - name: Authenticate Via OIDC Role
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-region: us-east-1
+          role-duration-seconds: 1800
+          role-skip-session-tagging: true
+          role-to-assume: ${{ secrets.ACTIONS_ROLE_ARN }}
+      - name: cdk synth
+        run: |-
+          npm ci
+          npm run build
+          npm run build:ci
+          npm run cdk synth
+      - name: Upload cdk.out
+        uses: actions/upload-artifact@v3
+        with:
+          name: cdk.out
+          path: cdk.out
+
+  deploy:
+    name: Deploy
+    needs: [synth]
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download cdk.out
+        uses: actions/download-artifact@v3
+        with:
+          name: cdk.out
+          path: cdk.out
+      - uses: actions/setup-node@v3
+        with:
+          node-version: v18.15.0
+      - name: Authenticate Via OIDC Role
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-region: us-east-1
+          role-duration-seconds: 1800
+          role-skip-session-tagging: true
+          role-to-assume: ${{ secrets.ACTIONS_ROLE_ARN }}
+      - name: Deploy
+        run: |-
+          npm install -g aws-cdk
+          npx cdk deploy --app 'cdk.out' --never-approve
+
